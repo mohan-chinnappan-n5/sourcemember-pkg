@@ -140,6 +140,25 @@ def main():
     Main function to run the Streamlit application.
     """
     st.title( "Pkg Generator for SourceMember" )
+
+    st.sidebar.write("""
+    **To get `auth.json`:**
+    1. Login into your org using:
+       ```bash
+       sf force auth web login -r https://login.salesforce.com
+       ```
+       or for sandboxes:
+       ```bash
+       sf force auth web login -r https://test.salesforce.com
+       ```
+       You will receive the username that got logged into this org in the console/terminal.
+
+    2. Run this command to get `auth.json`:
+       ```bash
+       sf mohanc hello myorg -u username | sed 's/instanceUrl/instance_url/' | sed 's/accessToken/access_token/' auth.json
+       ```
+    """)
+
     
     # Upload auth.json file
     auth_json = st.file_uploader("Upload auth.json file", type=['json'])
