@@ -4,34 +4,30 @@ import requests
 import csv
 import pandas as pd
 
-
 # ------------------------------------------------------
-# Package Generation for SourceMember 
-# Author: Mohan Chinnappan 
+# Package Generator for SourceMember 
+# Author: Mohan Chinnappan
 # ------------------------------------------------------
-
-
 
 class SalesforceQueryTool:
-    def __init__(self, auth_data, api_version='60.0', user_did_change=None, member_types=''):
+    def __init__(self, auth_data, api_version='60.0', user_did_change=None):
         """
         Initializes the SalesforceQueryTool with necessary parameters.
 
         :param auth_data: Dictionary containing access_token and instance_url
         :param api_version: Salesforce API version (default is '60.0')
         :param user_did_change: The user who made changes (LastModifiedBy.Name)
-        :param member_types: Comma-separated string of Member Types
         """
         self.access_token = auth_data['access_token']
         self.instance_url = auth_data['instance_url']
         self.api_version = api_version
         self.user_did_change = user_did_change
-        self.member_types = [mtype.strip() for mtype in member_types.split(',') if mtype.strip()]
 
-    def generate_soql(self):
+    def generate_soql(self, member_types=None):
         """
         Generates the SOQL query based on the provided parameters.
 
+        :param member_types: List of selected Member Types (optional)
         :return: The SOQL query string
         """
         query = (
@@ -41,22 +37,21 @@ class SalesforceQueryTool:
             "WHERE LastModifiedBy.Name = '{user_did_change}'"
         )
         
-        if self.member_types:
-            member_types_list = "', '".join(self.member_types)
+        if member_types:
+            member_types_list = "', '".join(member_types)
             query += f" AND MemberType IN ('{member_types_list}')"
         
         return query.format(user_did_change=self.user_did_change)
 
-    def run_tooling_query(self):
+    def run_tooling_query(self, soql_query):
         """
         Executes a SOQL query using Salesforce Tooling API.
 
+        :param soql_query: The SOQL query to execute
         :return: JSON response containing query results
         """
-        query = self.generate_soql()
-        
         # Use the API version specified in the instance
-        query_url = f"{self.instance_url}/services/data/v{self.api_version}/tooling/query?q={query}"
+        query_url = f"{self.instance_url}/services/data/v{self.api_version}/tooling/query?q={soql_query}"
         
         # Set the headers for the API request
         headers = {
@@ -143,7 +138,7 @@ def main():
     """
     Main function to run the Streamlit application.
     """
-    st.title("Package Generation for SourceMember ")
+    st.title( "Pkg Generator for SourceMember" )
     
     # Upload auth.json file
     auth_json = st.file_uploader("Upload auth.json file", type=['json'])
@@ -154,56 +149,90 @@ def main():
         # Input field for API version with a default value of 60.0
         api_version = st.text_input("Salesforce API Version", "60.0")
         
-        # Input fields for user-did-change and member-types
+        # Input fields for user-did-change
         user_did_change = st.text_input("User who made changes (LastModifiedBy.Name)")
-        member_types = st.text_input("Member Types (comma-separated, optional)")
+
+        # Initialize the tool variable only if auth_data and user_did_change are provided
+        tool = None
         
-        # Output file names
-        output_csv = st.text_input("Output CSV File Name", "output.csv")
-        pkg_xml = st.text_input("Output package.xml File Name", "package.xml")
+        if user_did_change and api_version:
+            tool = SalesforceQueryTool(
+                auth_data=auth_data,
+                api_version=api_version,
+                user_did_change=user_did_change
+            )
         
-        # Option to display the CSV as a DataFrame
-        display_csv = st.checkbox("Display CSV as DataFrame", value=False)
-        
-        # Option to show the generated SOQL query
-        show_soql = st.checkbox("Show Generated SOQL Query", value=False)
-        
-        if st.button("Run Query and Generate Files"):
+        if st.button("Fetch Member Types"):
             try:
-                # Create an instance of the SalesforceQueryTool
-                tool = SalesforceQueryTool(
-                    auth_data=auth_data,
-                    api_version=api_version,
-                    user_did_change=user_did_change,
-                    member_types=member_types
-                )
-                
-                # Generate and display the SOQL query if the option is selected
-                if show_soql:
+                if tool:
+                    # Generate and run the initial SOQL query to fetch member types
                     soql_query = tool.generate_soql()
-                    st.code(soql_query, language='sql')
-                
-                # Run the query and save the results to CSV
-                results = tool.run_tooling_query()
-                tool.save_to_csv(results, output_csv)
-                
-                # Generate package.xml from the CSV
-                tool.generate_package_xml(output_csv, pkg_xml)
-                
-                # Display CSV file as DataFrame if selected
-                if display_csv:
-                    df = pd.read_csv(output_csv)
-                    st.dataframe(df)
-                
-                # Provide download links for the generated files
-                with open(output_csv, "rb") as file:
-                    st.download_button(label="Download CSV", data=file, file_name=output_csv, mime='text/csv')
-                
-                with open(pkg_xml, "rb") as file:
-                    st.download_button(label="Download package.xml", data=file, file_name=pkg_xml, mime='application/xml')
+                    results = tool.run_tooling_query(soql_query)
                     
+                    # Extract unique MemberTypes from the results
+                    member_types = sorted({record['MemberType'] for record in results['records']})
+                    
+                    # Store the member_types in session state
+                    st.session_state['member_types'] = member_types
+                    
+                else:
+                    st.error("Tool is not initialized. Please check your inputs.")
+                
             except Exception as e:
                 st.error(f"An error occurred: {e}")
+        
+        # Load member_types from session state if available
+        if 'member_types' in st.session_state:
+            selected_member_types = st.multiselect(
+                "Select Member Types", 
+                st.session_state['member_types'], 
+                key='selected_member_types'
+            )
+            
+            # Output file names
+            output_csv = st.text_input("Output CSV File Name", "output.csv")
+            pkg_xml = st.text_input("Output package.xml File Name", "package.xml")
+            
+            # Option to display the CSV as a DataFrame
+            display_csv = st.checkbox("Display CSV as DataFrame", value=False)
+            
+            # Option to show the generated SOQL query
+            show_soql = st.checkbox("Show Generated SOQL Query", value=False)
+            
+            if st.button("Run Final Query and Generate Files"):
+                try:
+                    if tool:
+                        # Generate the final SOQL query based on selected Member Types
+                        final_query = tool.generate_soql(selected_member_types)
+                        
+                        # Display the generated SOQL query if the option is selected
+                        if show_soql:
+                            st.code(final_query, language='sql')
+                        
+                        # Run the final query and save the results to CSV
+                        final_results = tool.run_tooling_query(final_query)
+                        tool.save_to_csv(final_results, output_csv)
+                        
+                        # Generate package.xml from the CSV
+                        tool.generate_package_xml(output_csv, pkg_xml)
+                        
+                        # Display CSV file as DataFrame if selected
+                        if display_csv:
+                            df = pd.read_csv(output_csv)
+                            st.dataframe(df)
+                        
+                        # Provide download links for the generated files
+                        with open(output_csv, "rb") as file:
+                            st.download_button(label="Download CSV", data=file, file_name=output_csv, mime='text/csv')
+                        
+                        with open(pkg_xml, "rb") as file:
+                            st.download_button(label="Download package.xml", data=file, file_name=pkg_xml, mime='application/xml')
+                        
+                    else:
+                        st.error("Tool is not initialized. Please check your inputs.")
+                
+                except Exception as e:
+                    st.error(f"An error occurred: {e}")
 
 if __name__ == "__main__":
     main()
