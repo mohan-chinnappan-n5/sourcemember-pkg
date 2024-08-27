@@ -7,6 +7,7 @@ import pandas as pd
 # ------------------------------------------------------
 # Package Generator for SourceMember 
 # Author: Mohan Chinnappan
+# Copyleft software. Maintain the author name in your copies/modifications
 # ------------------------------------------------------
 
 class SalesforceQueryTool:
