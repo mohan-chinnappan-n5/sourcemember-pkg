@@ -4,10 +4,13 @@ import requests
 import csv
 import pandas as pd
 
+
 # ------------------------------------------------------
 # Package Generation for SourceMember 
 # Author: Mohan Chinnappan 
 # ------------------------------------------------------
+
+
 
 class SalesforceQueryTool:
     def __init__(self, auth_data, api_version='60.0', user_did_change=None, member_types=''):
@@ -25,13 +28,12 @@ class SalesforceQueryTool:
         self.user_did_change = user_did_change
         self.member_types = [mtype.strip() for mtype in member_types.split(',') if mtype.strip()]
 
-    def run_tooling_query(self):
+    def generate_soql(self):
         """
-        Executes a SOQL query using Salesforce Tooling API.
+        Generates the SOQL query based on the provided parameters.
 
-        :return: JSON response containing query results
+        :return: The SOQL query string
         """
-        # Construct the SOQL query with the provided parameters
         query = (
             "SELECT Id, LastModifiedBy.Name, MemberIdOrName, MemberType, MemberName, "
             "RevisionNum, RevisionCounter, IsNameObsolete, LastModifiedById, IsNewMember, ChangedBy "
@@ -43,8 +45,18 @@ class SalesforceQueryTool:
             member_types_list = "', '".join(self.member_types)
             query += f" AND MemberType IN ('{member_types_list}')"
         
+        return query.format(user_did_change=self.user_did_change)
+
+    def run_tooling_query(self):
+        """
+        Executes a SOQL query using Salesforce Tooling API.
+
+        :return: JSON response containing query results
+        """
+        query = self.generate_soql()
+        
         # Use the API version specified in the instance
-        query_url = f"{self.instance_url}/services/data/v{self.api_version}/tooling/query?q={query.format(user_did_change=self.user_did_change)}"
+        query_url = f"{self.instance_url}/services/data/v{self.api_version}/tooling/query?q={query}"
         
         # Set the headers for the API request
         headers = {
@@ -153,6 +165,9 @@ def main():
         # Option to display the CSV as a DataFrame
         display_csv = st.checkbox("Display CSV as DataFrame", value=False)
         
+        # Option to show the generated SOQL query
+        show_soql = st.checkbox("Show Generated SOQL Query", value=False)
+        
         if st.button("Run Query and Generate Files"):
             try:
                 # Create an instance of the SalesforceQueryTool
@@ -162,6 +177,11 @@ def main():
                     user_did_change=user_did_change,
                     member_types=member_types
                 )
+                
+                # Generate and display the SOQL query if the option is selected
+                if show_soql:
+                    soql_query = tool.generate_soql()
+                    st.code(soql_query, language='sql')
                 
                 # Run the query and save the results to CSV
                 results = tool.run_tooling_query()
