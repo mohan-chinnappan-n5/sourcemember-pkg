@@ -155,7 +155,7 @@ def main():
 
     2. Run this command to get `auth.json`:
        ```bash
-       sf mohanc hello myorg -u username | sed 's/instanceUrl/instance_url/' | sed 's/accessToken/access_token/' auth.json
+       sf mohanc hello myorg -u username | sed 's/instanceUrl/instance_url/' | sed 's/accessToken/access_token/' > auth.json
        ```
     """)
 
